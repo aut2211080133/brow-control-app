@@ -14,9 +14,6 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import com.google.mlkit.vision.common.InputImage
-import com.google.mlkit.vision.face.FaceDetection
-import com.google.mlkit.vision.face.FaceDetectorOptions
 
 class MainActivity : ComponentActivity() {
 
@@ -29,7 +26,7 @@ class MainActivity : ComponentActivity() {
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            setPadding(24, 24, 24, 24)
+            setPadding(20, 20, 20, 20)
         }
 
         statusText = TextView(this).apply {
@@ -47,7 +44,7 @@ class MainActivity : ComponentActivity() {
         }
 
         val startButton = Button(this).apply {
-            text = "Start Camera"
+            text = "START CAMERA"
             setOnClickListener {
                 checkCameraPermission()
             }
@@ -96,26 +93,25 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startCamera() {
+        statusText.text = "Camera starting..."
+
         val cameraProviderFuture =
             ProcessCameraProvider.getInstance(this)
 
         cameraProviderFuture.addListener({
 
-            val cameraProvider = cameraProviderFuture.get()
-
-            val preview = Preview.Builder().build().also {
-                it.setSurfaceProvider(previewView.surfaceProvider)
-            }
-
-            val cameraSelector =
-                CameraSelector.DEFAULT_FRONT_CAMERA
-
             try {
+                val cameraProvider = cameraProviderFuture.get()
+
+                val preview = Preview.Builder().build().also {
+                    it.setSurfaceProvider(previewView.surfaceProvider)
+                }
+
                 cameraProvider.unbindAll()
 
                 cameraProvider.bindToLifecycle(
                     this,
-                    cameraSelector,
+                    CameraSelector.DEFAULT_FRONT_CAMERA,
                     preview
                 )
 
