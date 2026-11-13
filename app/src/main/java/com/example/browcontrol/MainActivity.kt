@@ -9,7 +9,6 @@ import android.view.ViewGroup
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
-import android.widget.Toast
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
@@ -94,9 +93,7 @@ class MainActivity : Activity() {
         grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(
-            requestCode,
-            permissions,
-            grantResults
+            requestCode, permissions, grantResults
         )
 
         if (requestCode == cameraPermissionCode &&
@@ -110,7 +107,8 @@ class MainActivity : Activity() {
     }
 
     private fun startCamera() {
-        val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
+        val cameraProviderFuture =
+            ProcessCameraProvider.getInstance(this)
 
         cameraProviderFuture.addListener({
             val cameraProvider = cameraProviderFuture.get()
@@ -120,7 +118,9 @@ class MainActivity : Activity() {
             }
 
             val options = FaceDetectorOptions.Builder()
-                .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
+                .setPerformanceMode(
+                    FaceDetectorOptions.PERFORMANCE_MODE_FAST
+                )
                 .build()
 
             val detector = FaceDetection.getClient(options)
@@ -149,11 +149,6 @@ class MainActivity : Activity() {
                                     } else {
                                         "Looking for face..."
                                     }
-                            }
-                        }
-                        .addOnFailureListener {
-                            runOnUiThread {
-                                statusText.text = "Face detection failed"
                             }
                         }
                         .addOnCompleteListener {
