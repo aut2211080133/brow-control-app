@@ -37,6 +37,7 @@ class MainActivity : ComponentActivity() {
 
     private var eyebrowBaseline: Float? = null
     private var lastActionTime = 0L
+    private var lastTimestamp = 0L
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -120,30 +121,29 @@ class MainActivity : ComponentActivity() {
 
             val options = FaceLandmarker.FaceLandmarkerOptions.builder()
                 .setBaseOptions(baseOptions)
-                .setRunningMode(RunningMode.LIVE_STREAM)
+                .setRunningMode(RunningMode.VIDEO)
                 .setNumFaces(1)
-                .setResultListener { result: FaceLandmarkerResult, _ ->
-                    processFace(result)
-                }
-                .setErrorListener { error ->
-                    runOnUiThread {
-                        statusText.text =
-                            "Detection error: ${error.message}"
-                    }
-                }
+                .setMinFaceDetectionConfidence(0.3f)
+                .setMinFacePresenceConfidence(0.3f)
+                .setMinTrackingConfidence(0.3f)
                 .build()
 
             faceLandmarker =
                 FaceLandmarker.createFromOptions(this, options)
 
-            statusText.text = "Face detection ready"
+            runOnUiThread {
+                statusText.text = "Face detection ready"
+            }
 
         } catch (e: Exception) {
-            statusText.text = "Model error: ${e.message}"
+            runOnUiThread {
+                statusText.text = "Model error: ${e.message}"
+            }
         }
     }
 
     private fun processFace(result: FaceLandmarkerResult) {
+
         if (result.faceLandmarks().isEmpty()) {
             runOnUiThread {
                 statusText.text = "Face not detected"
@@ -163,6 +163,7 @@ class MainActivity : ComponentActivity() {
 
         if (eyebrowBaseline == null) {
             eyebrowBaseline = measurement
+
             runOnUiThread {
                 statusText.text = "Keep your eyebrows relaxed"
             }
@@ -173,20 +174,27 @@ class MainActivity : ComponentActivity() {
         val now = SystemClock.uptimeMillis()
 
         if (now - lastActionTime >= 1200) {
+
             when {
                 difference < -0.025f -> {
+
                     MyAccessibilityService.scrollUp()
+
                     runOnUiThread {
                         statusText.text = "Scroll Up"
                     }
+
                     lastActionTime = now
                 }
 
                 difference > 0.025f -> {
+
                     MyAccessibilityService.scrollDown()
+
                     runOnUiThread {
                         statusText.text = "Scroll Down"
                     }
+
                     lastActionTime = now
                 }
             }
@@ -197,12 +205,16 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startCamera() {
-        statusText.text = "Camera starting..."
+
+        runOnUiThread {
+            statusText.text = "Camera starting..."
+        }
 
         val cameraProviderFuture =
             ProcessCameraProvider.getInstance(this)
 
         cameraProviderFuture.addListener({
+
             try {
                 val cameraProvider = cameraProviderFuture.get()
 
@@ -211,6 +223,9 @@ class MainActivity : ComponentActivity() {
                 }
 
                 val imageAnalysis = ImageAnalysis.Builder()
+                    .setOutputImageFormat(
+                        ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888
+                    )
                     .setBackpressureStrategy(
                         ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST
                     )
@@ -239,20 +254,55 @@ class MainActivity : ComponentActivity() {
                         "Camera error: ${e.message}"
                 }
             }
+
         }, ContextCompat.getMainExecutor(this))
     }
 
     private fun analyzeFrame(imageProxy: ImageProxy) {
-        try {
-            val sourceBitmap = imageProxy.toBitmap()
 
-            val bitmap = if (
-                sourceBitmap.config == Bitmap.Config.ARGB_8888
-            ) {
-                sourceBitmap
-            } else {
-                sourceBitmap.copy(Bitmap.Config.ARGB_8888, false)
+        try {
+            val plane = imageProxy.planes[0]
+            val buffer = plane.buffer
+            val rowStride = plane.rowStride
+            val pixelStride = plane.pixelStride
+
+            val width = imageProxy.width
+            val height = imageProxy.height
+
+            val pixels = IntArray(width * height)
+
+            for (y in 0 until height) {
+                for (x in 0 until width) {
+
+                    val index = y * rowStride + x * pixelStride
+
+                    val r = buffer.get(index).toInt() and 0xFF
+                    val g = buffer.get(index + 1).toInt() and 0xFF
+                    val b = buffer.get(index + 2).toInt() and 0xFF
+                    val a = buffer.get(index + 3).toInt() and 0xFF
+
+                    pixels[y * width + x] =
+                        (a shl 24) or
+                        (r shl 16) or
+                        (g shl 8) or b
+                }
             }
+
+            val bitmap = Bitmap.createBitmap(
+                width,
+                height,
+                Bitmap.Config.ARGB_8888
+            )
+
+            bitmap.setPixels(
+                pixels,
+                0,
+                width,
+                0,
+                0,
+                width,
+                height
+            )
 
             val mpImage = BitmapImageBuilder(bitmap).build()
 
@@ -262,17 +312,30 @@ class MainActivity : ComponentActivity() {
                 )
                 .build()
 
-            faceLandmarker?.detectAsync(
-                mpImage,
-                imageOptions,
-                SystemClock.uptimeMillis()
+            val timestamp = maxOf(
+                SystemClock.uptimeMillis(),
+                lastTimestamp + 1
             )
 
+            lastTimestamp = timestamp
+
+            val result = faceLandmarker?.detectForVideo(
+                mpImage,
+                imageOptions,
+                timestamp
+            )
+
+            if (result != null) {
+                processFace(result)
+            }
+
         } catch (e: Exception) {
+
             runOnUiThread {
                 statusText.text =
                     "Frame error: ${e.javaClass.simpleName}: ${e.message}"
             }
+
         } finally {
             imageProxy.close()
         }
