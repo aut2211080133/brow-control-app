@@ -1,3 +1,4 @@
+
 package com.example.browcontrol
 
 import android.accessibilityservice.AccessibilityService
@@ -11,9 +12,11 @@ class MyAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        // Accessibility events are handled here.
     }
 
     override fun onInterrupt() {
+        // Called when the service is interrupted.
     }
 
     fun scrollDown() {
