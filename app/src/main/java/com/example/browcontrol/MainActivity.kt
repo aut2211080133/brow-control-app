@@ -12,16 +12,16 @@ import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
-import androidx.camera.core.Preview
 import androidx.camera.core.ImageProxy
+import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import com.google.mediapipe.framework.image.BitmapImageBuilder
+import com.google.mediapipe.framework.image.MediaImageBuilder
 import com.google.mediapipe.tasks.core.BaseOptions
-import com.google.mediapipe.tasks.vision.core.RunningMode
 import com.google.mediapipe.tasks.vision.core.ImageProcessingOptions
+import com.google.mediapipe.tasks.vision.core.RunningMode
 import com.google.mediapipe.tasks.vision.facelandmarker.FaceLandmarker
 import com.google.mediapipe.tasks.vision.facelandmarker.FaceLandmarkerResult
 import java.util.concurrent.Executors
@@ -175,21 +175,17 @@ class MainActivity : ComponentActivity() {
             when {
                 difference < -0.025f -> {
                     MyAccessibilityService.scrollUp()
-
                     runOnUiThread {
                         statusText.text = "Scroll Up"
                     }
-
                     lastActionTime = now
                 }
 
                 difference > 0.025f -> {
                     MyAccessibilityService.scrollDown()
-
                     runOnUiThread {
                         statusText.text = "Scroll Down"
                     }
-
                     lastActionTime = now
                 }
             }
@@ -247,8 +243,13 @@ class MainActivity : ComponentActivity() {
 
     private fun analyzeFrame(imageProxy: ImageProxy) {
         try {
-            val bitmap = imageProxy.toBitmap()
-            val mpImage = BitmapImageBuilder(bitmap).build()
+            val mediaImage = imageProxy.image
+
+            if (mediaImage == null) {
+                return
+            }
+
+            val mpImage = MediaImageBuilder(mediaImage).build()
 
             val imageOptions = ImageProcessingOptions.builder()
                 .setRotationDegrees(
