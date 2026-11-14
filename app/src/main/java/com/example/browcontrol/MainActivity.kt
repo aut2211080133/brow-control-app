@@ -47,7 +47,7 @@ class MainActivity : ComponentActivity() {
         }
 
         statusText = TextView(this).apply {
-            text = "Brow Control - Ready"
+            text = "Brow Control Ready"
             textSize = 22f
             gravity = Gravity.CENTER
         }
@@ -152,39 +152,44 @@ class MainActivity : ComponentActivity() {
 
         val points = result.faceLandmarks()[0]
 
-        val eyebrowY = (
-            points[105].y() +
-            points[334].y()
-        ) / 2f
+        val eyebrowY =
+            (points[105].y() + points[334].y()) / 2f
 
-        val eyeY = (
-            points[159].y() +
-            points[386].y()
-        ) / 2f
+        val eyeY =
+            (points[159].y() + points[386].y()) / 2f
 
         val measurement = eyebrowY - eyeY
 
         if (eyebrowBaseline == null) {
             eyebrowBaseline = measurement
+            runOnUiThread {
+                statusText.text = "Keep your eyebrows relaxed"
+            }
             return
         }
 
         val difference = measurement - eyebrowBaseline!!
         val now = SystemClock.uptimeMillis()
 
-        if (now - lastActionTime > 1000) {
+        if (now - lastActionTime >= 1200) {
             when {
                 difference < -0.025f -> {
+                    MyAccessibilityService.scrollUp()
+
                     runOnUiThread {
-                        statusText.text = "Eyebrows raised"
+                        statusText.text = "Scroll Up"
                     }
+
                     lastActionTime = now
                 }
 
                 difference > 0.025f -> {
+                    MyAccessibilityService.scrollDown()
+
                     runOnUiThread {
-                        statusText.text = "Eyebrows lowered"
+                        statusText.text = "Scroll Down"
                     }
+
                     lastActionTime = now
                 }
             }
@@ -233,7 +238,8 @@ class MainActivity : ComponentActivity() {
 
             } catch (e: Exception) {
                 runOnUiThread {
-                    statusText.text = "Camera error: ${e.message}"
+                    statusText.text =
+                        "Camera error: ${e.message}"
                 }
             }
         }, ContextCompat.getMainExecutor(this))
@@ -245,7 +251,9 @@ class MainActivity : ComponentActivity() {
             val mpImage = BitmapImageBuilder(bitmap).build()
 
             val imageOptions = ImageProcessingOptions.builder()
-                .setRotationDegrees(imageProxy.imageInfo.rotationDegrees)
+                .setRotationDegrees(
+                    imageProxy.imageInfo.rotationDegrees
+                )
                 .build()
 
             faceLandmarker?.detectAsync(
