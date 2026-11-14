@@ -2,6 +2,8 @@
 package com.example.browcontrol
 
 import android.accessibilityservice.AccessibilityService
+import android.os.Handler
+import android.os.Looper
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 
@@ -9,25 +11,44 @@ class MyAccessibilityService : AccessibilityService() {
 
     override fun onServiceConnected() {
         super.onServiceConnected()
+        instance = this
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        // Accessibility events are handled here.
     }
 
     override fun onInterrupt() {
-        // Called when the service is interrupted.
     }
 
-    fun scrollDown() {
-        rootInActiveWindow?.performAction(
-            AccessibilityNodeInfo.ACTION_SCROLL_FORWARD
-        )
+    private fun performScroll(action: Int) {
+        rootInActiveWindow?.performAction(action)
     }
 
-    fun scrollUp() {
-        rootInActiveWindow?.performAction(
-            AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD
-        )
+    override fun onDestroy() {
+        if (instance === this) {
+            instance = null
+        }
+        super.onDestroy()
+    }
+
+    companion object {
+        private var instance: MyAccessibilityService? = null
+        private val mainHandler = Handler(Looper.getMainLooper())
+
+        fun scrollDown() {
+            mainHandler.post {
+                instance?.performScroll(
+                    AccessibilityNodeInfo.ACTION_SCROLL_FORWARD
+                )
+            }
+        }
+
+        fun scrollUp() {
+            mainHandler.post {
+                instance?.performScroll(
+                    AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD
+                )
+            }
+        }
     }
 }
