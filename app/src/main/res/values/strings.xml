@@ -1,5 +1,4 @@
 
-<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Brow Control</string>
     <string name="accessibility_service_description">Allows Brow Control to scroll the screen using eyebrow movements.</string>
