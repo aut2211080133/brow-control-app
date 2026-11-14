@@ -3,6 +3,7 @@ package com.example.browcontrol
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.os.Bundle
 import android.os.SystemClock
 import android.view.Gravity
@@ -18,7 +19,7 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import com.google.mediapipe.framework.image.MediaImageBuilder
+import com.google.mediapipe.framework.image.BitmapImageBuilder
 import com.google.mediapipe.tasks.core.BaseOptions
 import com.google.mediapipe.tasks.vision.core.ImageProcessingOptions
 import com.google.mediapipe.tasks.vision.core.RunningMode
@@ -243,13 +244,17 @@ class MainActivity : ComponentActivity() {
 
     private fun analyzeFrame(imageProxy: ImageProxy) {
         try {
-            val mediaImage = imageProxy.image
+            val sourceBitmap = imageProxy.toBitmap()
 
-            if (mediaImage == null) {
-                return
+            val bitmap = if (
+                sourceBitmap.config == Bitmap.Config.ARGB_8888
+            ) {
+                sourceBitmap
+            } else {
+                sourceBitmap.copy(Bitmap.Config.ARGB_8888, false)
             }
 
-            val mpImage = MediaImageBuilder(mediaImage).build()
+            val mpImage = BitmapImageBuilder(bitmap).build()
 
             val imageOptions = ImageProcessingOptions.builder()
                 .setRotationDegrees(
@@ -265,7 +270,8 @@ class MainActivity : ComponentActivity() {
 
         } catch (e: Exception) {
             runOnUiThread {
-                statusText.text = "Frame error: ${e.message}"
+                statusText.text =
+                    "Frame error: ${e.javaClass.simpleName}: ${e.message}"
             }
         } finally {
             imageProxy.close()
