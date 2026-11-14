@@ -1,8 +1,10 @@
+
 package com.example.browcontrol
 
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.os.SystemClock
 import android.view.Gravity
 import android.widget.Button
 import android.widget.LinearLayout
@@ -11,12 +13,15 @@ import androidx.activity.ComponentActivity
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
+import androidx.camera.core.ImageProxy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.google.mediapipe.framework.image.BitmapImageBuilder
 import com.google.mediapipe.tasks.core.BaseOptions
 import com.google.mediapipe.tasks.vision.core.RunningMode
+import com.google.mediapipe.tasks.vision.core.ImageProcessingOptions
 import com.google.mediapipe.tasks.vision.facelandmarker.FaceLandmarker
 import com.google.mediapipe.tasks.vision.facelandmarker.FaceLandmarkerResult
 import java.util.concurrent.Executors
@@ -25,8 +30,12 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var previewView: PreviewView
     private lateinit var statusText: TextView
+
     private var faceLandmarker: FaceLandmarker? = null
     private val cameraExecutor = Executors.newSingleThreadExecutor()
+
+    private var eyebrowBaseline: Float? = null
+    private var lastActionTime = 0L
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -38,7 +47,7 @@ class MainActivity : ComponentActivity() {
         }
 
         statusText = TextView(this).apply {
-            text = "Brow Control"
+            text = "Brow Control - Ready"
             textSize = 22f
             gravity = Gravity.CENTER
         }
@@ -61,6 +70,7 @@ class MainActivity : ComponentActivity() {
         layout.addView(statusText)
         layout.addView(previewView)
         layout.addView(startButton)
+
         setContentView(layout)
     }
 
@@ -112,28 +122,76 @@ class MainActivity : ComponentActivity() {
                 .setRunningMode(RunningMode.LIVE_STREAM)
                 .setNumFaces(1)
                 .setResultListener { result: FaceLandmarkerResult, _ ->
-                    runOnUiThread {
-                        statusText.text =
-                            if (result.faceLandmarks().isNotEmpty()) {
-                                "Face detected"
-                            } else {
-                                "Face not detected"
-                            }
-                    }
+                    processFace(result)
                 }
                 .setErrorListener { error ->
                     runOnUiThread {
-                        statusText.text = "Detection error: ${error.message}"
+                        statusText.text =
+                            "Detection error: ${error.message}"
                     }
                 }
                 .build()
 
-            faceLandmarker = FaceLandmarker.createFromOptions(this, options)
+            faceLandmarker =
+                FaceLandmarker.createFromOptions(this, options)
+
             statusText.text = "Face detection ready"
 
         } catch (e: Exception) {
             statusText.text = "Model error: ${e.message}"
         }
+    }
+
+    private fun processFace(result: FaceLandmarkerResult) {
+        if (result.faceLandmarks().isEmpty()) {
+            runOnUiThread {
+                statusText.text = "Face not detected"
+            }
+            return
+        }
+
+        val points = result.faceLandmarks()[0]
+
+        val eyebrowY = (
+            points[105].y() +
+            points[334].y()
+        ) / 2f
+
+        val eyeY = (
+            points[159].y() +
+            points[386].y()
+        ) / 2f
+
+        val measurement = eyebrowY - eyeY
+
+        if (eyebrowBaseline == null) {
+            eyebrowBaseline = measurement
+            return
+        }
+
+        val difference = measurement - eyebrowBaseline!!
+        val now = SystemClock.uptimeMillis()
+
+        if (now - lastActionTime > 1000) {
+            when {
+                difference < -0.025f -> {
+                    runOnUiThread {
+                        statusText.text = "Eyebrows raised"
+                    }
+                    lastActionTime = now
+                }
+
+                difference > 0.025f -> {
+                    runOnUiThread {
+                        statusText.text = "Eyebrows lowered"
+                    }
+                    lastActionTime = now
+                }
+            }
+        }
+
+        eyebrowBaseline =
+            eyebrowBaseline!! * 0.98f + measurement * 0.02f
     }
 
     private fun startCamera() {
@@ -157,10 +215,11 @@ class MainActivity : ComponentActivity() {
                     .build()
 
                 imageAnalysis.setAnalyzer(cameraExecutor) { imageProxy ->
-                    imageProxy.close()
+                    analyzeFrame(imageProxy)
                 }
 
                 cameraProvider.unbindAll()
+
                 cameraProvider.bindToLifecycle(
                     this,
                     CameraSelector.DEFAULT_FRONT_CAMERA,
@@ -168,12 +227,40 @@ class MainActivity : ComponentActivity() {
                     imageAnalysis
                 )
 
-                statusText.text = "Camera started"
+                runOnUiThread {
+                    statusText.text = "Camera started"
+                }
 
             } catch (e: Exception) {
-                statusText.text = "Camera error: ${e.message}"
+                runOnUiThread {
+                    statusText.text = "Camera error: ${e.message}"
+                }
             }
         }, ContextCompat.getMainExecutor(this))
+    }
+
+    private fun analyzeFrame(imageProxy: ImageProxy) {
+        try {
+            val bitmap = imageProxy.toBitmap()
+            val mpImage = BitmapImageBuilder(bitmap).build()
+
+            val imageOptions = ImageProcessingOptions.builder()
+                .setRotationDegrees(imageProxy.imageInfo.rotationDegrees)
+                .build()
+
+            faceLandmarker?.detectAsync(
+                mpImage,
+                imageOptions,
+                SystemClock.uptimeMillis()
+            )
+
+        } catch (e: Exception) {
+            runOnUiThread {
+                statusText.text = "Frame error: ${e.message}"
+            }
+        } finally {
+            imageProxy.close()
+        }
     }
 
     override fun onDestroy() {
